@@ -1,0 +1,26 @@
+name: CI/CD to AKS
+on:
+  push:
+    branches: [ "main" ]
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Build and Push to ACR
+        run: |
+          az acr login --name ${{ secrets.ACR_NAME }}
+          docker build -t ${{ secrets.ACR_NAME }}.azurecr.io/sample-app:${{ github.sha }} .
+          docker push ${{ secrets.ACR_NAME }}.azurecr.io/sample-app:${{ github.sha }}
+      - name: Deploy with kubectl
+        uses: azure/aks-set-context@v4
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          cluster-name: platform-aks
+          resource-group: platform-rg
+      - run: |
+          kubectl set image deployment/sample-app sample-app=${{ secrets.ACR_NAME }}.azurecr.io/sample-app:${{ github.sha }}
